@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>果物零售 | 老闆的數位幕僚</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        sage: { 50: '#f2f7f2', 100: '#e1ebe1', 500: '#84a98c', 800: '#354f52', 900: '#2f3e46' },
+                        fresh: { orange: '#e76f51', yellow: '#e9c46a' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style> .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; } </style>
+</head>
+<body class="bg-gray-50 text-slate-800 font-sans antialiased h-screen flex overflow-hidden">
+
+    <script>
+        // *** 請將此處替換為您 n8n 的 Production URL ***
+        const N8N_DATA_API = "https://chieh1217.app.n8n.cloud/webhook/dashboard-data"; // 例如: https://.../webhook/dashboard-data
+        const N8N_CHAT_API = "https://chieh1217.app.n8n.cloud/webhook/web-chat"; // 例如: https://.../webhook/web-chat
+        const N8N_MARKETING_API = "https://chieh1217.app.n8n.cloud/webhook/generate-marketing";
+    </script>
+
+    <aside class="w-64 bg-sage-900 text-white flex flex-col shadow-xl z-20">
+        <div class="h-20 flex items-center px-8 border-b border-sage-800">
+            <i class="fa-solid fa-leaf text-fresh-orange text-2xl mr-3"></i>
+            <h1 class="text-2xl font-bold tracking-wider">果物零售</h1>
+        </div>
+        <nav class="flex-1 py-6 px-4 space-y-2">
+            <a href="#" onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-item flex items-center px-4 py-3 bg-sage-800 rounded-xl transition-colors text-white"><i class="fa-solid fa-chart-pie w-6"></i><span>總覽儀表板</span></a>
+            <a href="#" onclick="switchTab('inventory')" id="nav-inventory" class="nav-item flex items-center px-4 py-3 hover:bg-sage-800 rounded-xl transition-colors text-gray-300 hover:text-white"><i class="fa-solid fa-boxes-stacked w-6"></i><span>庫存監控</span></a>
+            <a href="#" onclick="switchTab('marketing')" id="nav-marketing" class="nav-item flex items-center px-4 py-3 hover:bg-sage-800 rounded-xl transition-colors text-gray-300 hover:text-white"><i class="fa-solid fa-bullhorn w-6"></i><span>行銷文案室</span></a>
+        </nav>
+        <div class="p-4 border-t border-sage-800">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-fresh-orange flex items-center justify-center font-bold">老闆</div>
+                <div><p class="text-sm font-medium">蔬果行管理員</p><p class="text-xs text-gray-400 text-green-400">● 系統連線中</p></div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-full relative">
+        <header class="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8 shadow-sm">
+            <div>
+                <h2 class="text-2xl font-bold text-sage-900" id="page-title">早安，老闆！☀️</h2>
+                <p class="text-sm text-gray-500">今天是 <span id="current-date">...</span></p>
+            </div>
+            <div class="flex items-center bg-sage-50 px-4 py-2 rounded-full border border-sage-100" id="weather-widget">
+                <i class="fa-solid fa-spinner fa-spin text-fresh-orange mr-2"></i>
+                <span class="font-bold text-sage-800">載入天氣中...</span>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-8 no-scrollbar relative">
+            
+            <div id="view-dashboard" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="col-span-2 bg-gradient-to-br from-sage-800 to-sage-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-4 opacity-10"><i class="fa-solid fa-robot text-9xl"></i></div>
+                        <div class="relative z-10">
+                            <div class="flex justify-between items-start mb-4">
+                                <h3 class="font-bold text-lg"><i class="fa-solid fa-brain mr-2"></i>即時庫存洞察</h3>
+                                <span class="bg-fresh-orange text-xs px-2 py-1 rounded">更新完成</span>
+                            </div>
+                            <p class="text-gray-200 mb-6 text-lg leading-relaxed" id="ai-insight-text">
+                                正在分析庫存數據與今日天氣...
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-6 shadow-md border-l-4 border-red-500">
+                        <h3 class="font-bold text-lg text-gray-800 mb-4 flex items-center"><i class="fa-solid fa-triangle-exclamation text-red-500 mr-2"></i>急售警報</h3>
+                        <ul class="space-y-3" id="alert-list">
+                            <li class="text-gray-500 text-sm">載入中...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-inventory" class="hidden">
+                <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <div class="p-6 border-b border-gray-100 flex justify-between items-center">
+                        <h3 class="font-bold text-lg">即時庫存清單</h3>
+                        <button onclick="fetchDashboardData()" class="text-fresh-orange font-bold text-sm hover:underline"><i class="fa-solid fa-rotate mr-1"></i>刷新數據</button>
+                    </div>
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 text-gray-500 text-sm">
+                            <tr><th class="p-4">品項名稱</th><th class="p-4">庫存量</th><th class="p-4">狀態</th><th class="p-4">剩餘效期</th></tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100" id="inventory-table-body">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="view-marketing" class="hidden">
+                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-2xl shadow-sm p-6">
+            <h3 class="font-bold text-lg mb-4">文案生成器</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">選擇推廣商品</label>
+                    <select id="product-select" class="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-sage-500">
+                        <option>載入中...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">情境標籤</label>
+                    <div class="flex flex-wrap gap-2" id="vibe-tags">
+                        <button onclick="selectTag(this)" class="px-3 py-1 rounded-full border border-gray-200 text-sm hover:bg-sage-100">🌧️ 下雨天</button>
+                        <button onclick="selectTag(this)" class="px-3 py-1 rounded-full border border-gray-200 text-sm hover:bg-sage-100">🔥 天氣熱</button>
+                        <button onclick="selectTag(this)" class="px-3 py-1 rounded-full border border-gray-200 text-sm hover:bg-sage-100">💸 清庫存</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">額外指令</label>
+                    <textarea id="custom-instruction" class="w-full border border-gray-300 rounded-lg p-2 h-24 outline-none focus:ring-2 focus:ring-sage-500" placeholder="例如：強調買一送一..."></textarea>
+                </div>
+                <button onclick="generateMarketingCopy()" id="generate-btn" class="w-full bg-sage-800 text-white font-bold py-3 rounded-xl hover:bg-sage-700 transition shadow-lg flex justify-center items-center">
+                    <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> AI 生成文案
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-gray-100 rounded-2xl p-6 border-2 border-dashed border-gray-300 flex flex-col justify-center items-center">
+            <div class="w-full max-w-sm bg-white rounded-xl shadow-md overflow-hidden text-left">
+                <div class="h-4 bg-green-500"></div>
+                <div class="p-4">
+                    <p class="text-xs text-gray-400 mb-2">預覽內容</p>
+                    <div id="copy-preview" class="text-sm text-gray-800 leading-relaxed min-h-[100px]">
+                        尚未生成文案...
+                    </div>
+                </div>
+            </div>
+            <div id="publish-btns" class="mt-6 flex gap-3 w-full max-w-sm opacity-50">
+                <button class="publish-btn flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold disabled:cursor-not-allowed" disabled>FB 發布</button>
+                <button class="publish-btn flex-1 bg-green-500 text-white py-2 rounded-lg font-bold disabled:cursor-not-allowed" disabled>LINE 推播</button>
+            </div>
+        </div>
+    </div>
+</div>
+            </div>
+        </div>
+    </main>
+
+    <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+        <div id="chat-window" class="hidden w-96 h-[500px] bg-white rounded-2xl shadow-2xl mb-4 border border-gray-200 flex flex-col overflow-hidden">
+            <div class="bg-sage-800 text-white p-4 flex justify-between items-center">
+                <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div><span class="font-bold">AI 智囊團</span></div>
+                <button onclick="toggleChat()" class="text-gray-300 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50" id="chat-messages">
+                <div class="flex gap-3">
+                    <div class="w-8 h-8 rounded-full bg-sage-200 flex items-center justify-center text-sage-700"><i class="fa-solid fa-robot"></i></div>
+                    <div class="bg-white p-3 rounded-r-xl rounded-bl-xl shadow-sm text-sm text-gray-800 max-w-[80%] border border-gray-100">
+                        老闆好！我是您的 AI 顧問。今天想查庫存還是需要行銷建議呢？
+                    </div>
+                </div>
+            </div>
+            <div class="p-3 bg-white border-t border-gray-100">
+                <form onsubmit="sendChat(event)" class="flex gap-2">
+                    <input type="text" id="chat-input" placeholder="輸入問題..." class="flex-1 bg-gray-100 border-0 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-sage-500 outline-none">
+                    <button type="submit" class="w-10 h-10 rounded-full bg-sage-800 text-white hover:bg-fresh-orange transition flex items-center justify-center">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        <button onclick="toggleChat()" class="w-16 h-16 bg-fresh-orange text-white rounded-full shadow-lg hover:bg-orange-600 transition flex items-center justify-center text-2xl animate-bounce">
+            <i class="fa-solid fa-comment-dots"></i>
+        </button>
+    </div>
+
+<script>
+        // 1. 初始化與頁面控制
+        const dateOptions = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+        document.getElementById('current-date').textContent = new Date().toLocaleDateString('zh-TW', dateOptions);
+
+        function switchTab(tabId) {
+            ['dashboard', 'inventory', 'marketing'].forEach(id => {
+                document.getElementById(`view-${id}`).classList.add('hidden');
+                document.getElementById(`nav-${id}`).classList.remove('bg-sage-800', 'text-white');
+                document.getElementById(`nav-${id}`).classList.add('text-gray-300');
+            });
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            const activeNav = document.getElementById(`nav-${tabId}`);
+            activeNav.classList.add('bg-sage-800', 'text-white');
+            activeNav.classList.remove('text-gray-300');
+        }
+
+        function toggleChat() {
+            const chatWin = document.getElementById('chat-window');
+            chatWin.classList.toggle('hidden');
+        }
+        
+        // [新增] 處理情境標籤點擊效果
+        function selectTag(btn) {
+            // 1. 重置所有按鈕樣式
+            const allBtns = document.querySelectorAll('#vibe-tags button');
+            allBtns.forEach(b => {
+                b.classList.remove('vibe-tag-active', 'bg-sage-800', 'text-white');
+                b.classList.add('border-gray-200', 'text-gray-800');
+            });
+
+            // 2. 設定當前按鈕為啟用狀態
+            btn.classList.remove('border-gray-200', 'text-gray-800');
+            btn.classList.add('vibe-tag-active', 'bg-sage-800', 'text-white');
+        }
+
+        // 2. 獲取儀表板資料 (修正版)
+// 2. 獲取儀表板資料 (修正版：先顯示測試選項，再讀取 API)
+        async function fetchDashboardData() {
+            // 先抓取選單元素
+            const productSelect = document.getElementById('product-select');
+         
+            
+            // 【關鍵修正】在呼叫 API 之前，先填入測試選項，這樣網頁一開就有東西選
+
+            /*
+                    <option value="測試用愛文芒果">【測試】愛文芒果</option>
+                    <option value="測試用高山高麗菜">【測試】高山高麗菜</option>
+
+            */
+            if (productSelect) {
+                productSelect.innerHTML = `
+                    <option value="auto">自動推薦 (依天氣/庫存)</option>
+                `;
+            }
+
+            if(N8N_DATA_API.includes("YOUR_N8N")) {
+                console.warn("請設定 N8N Webhook 網址");
+                return;
+            }
+
+            try {
+                // 開始向 n8n 請求資料
+                const res = await fetch(N8N_DATA_API);
+                const data = await res.json();
+
+                // 如果成功抓到真實庫存，則把真實資料加在測試選項後面
+                if (productSelect && data.inventory && Array.isArray(data.inventory)) {
+                    data.inventory.forEach(item => {
+                        const opt = document.createElement('option');
+                        opt.value = item.name;
+                        opt.textContent = `${item.name} (庫存: ${item.stock})`;
+                        productSelect.appendChild(opt);
+                    });
+                }
+               
+                // --- 更新天氣 ---
+                document.getElementById('weather-widget').innerHTML = `
+                    <i class="fa-solid fa-cloud-sun text-fresh-orange mr-2"></i>
+                    <span class="font-bold text-sage-800 mr-2">台北 ${Math.round(data.temp)}°C</span>
+                    <span class="text-xs text-gray-500 border-l pl-2 border-gray-300">${data.weather}</span>
+                `;
+
+                // --- 更新庫存表格 ---
+                const tbody = document.getElementById('inventory-table-body');
+                if (tbody) tbody.innerHTML = '';
+                const alertList = document.getElementById('alert-list');
+                if (alertList) alertList.innerHTML = '';
+
+                let urgentCount = 0;
+
+                if (data.inventory && Array.isArray(data.inventory)) {
+                    data.inventory.forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.className = "hover:bg-gray-50";
+                        let badgeClass = "bg-green-100 text-green-700";
+                        if(item.status === '急售') badgeClass = "bg-red-100 text-red-700";
+                        if(item.status === '即期') badgeClass = "bg-yellow-100 text-yellow-700";
+
+                        tr.innerHTML = `
+                            <td class="p-4 font-bold text-gray-800">${item.name}</td>
+                            <td class="p-4 font-mono">${item.stock}</td>
+                            <td class="p-4"><span class="${badgeClass} px-2 py-1 rounded text-xs font-bold">${item.status}</span></td>
+                            <td class="p-4 text-gray-600">${item.days_left} 天</td>
+                        `;
+                        if (tbody) tbody.appendChild(tr);
+
+                        if(item.status === '急售' || item.status === '即期') {
+                            urgentCount++;
+                            const li = document.createElement('li');
+                            li.className = `flex justify-between items-center p-3 ${item.status === '急售' ? 'bg-red-50' : 'bg-yellow-50'} rounded-lg`;
+                            li.innerHTML = `
+                                <div><span class="font-bold text-gray-700">${item.name}</span><div class="text-xs ${item.status === '急售' ? 'text-red-500' : 'text-yellow-600'}">剩餘 ${item.days_left} 天</div></div>
+                                <span class="font-mono font-bold text-xl text-gray-800">${item.stock}</span>
+                            `;
+                            if (alertList) alertList.appendChild(li);
+                        }
+                    });
+                }
+
+                if(urgentCount === 0 && alertList) alertList.innerHTML = '<li class="text-green-600 text-sm p-2">目前無急售商品，庫存健康！</li>';
+                const aiInsight = document.getElementById('ai-insight-text');
+                if (aiInsight) aiInsight.innerText = `目前有 ${urgentCount} 項商品需要注意效期。今日天氣 ${data.weather}，建議檢查上方急售清單進行促銷。`;
+
+            } catch (error) {
+                console.error("Fetch Data Error:", error);
+                const aiInsight = document.getElementById('ai-insight-text');
+                if (aiInsight) aiInsight.innerText = "無法連線至系統，請確認 n8n 是否啟動。目前僅能使用測試選單。";
+            }
+        }
+        // 3. AI 對話功能
+        async function sendChat(e) {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessage(message, 'user');
+            input.value = '';
+            
+            const loadingId = addMessage('思考中...', 'ai', true);
+
+            try {
+                const res = await fetch(N8N_CHAT_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatInput: message })
+                });
+                const data = await res.json();
+                document.getElementById(loadingId).remove();
+                addMessage(data.reply, 'ai');
+            } catch (error) {
+                document.getElementById(loadingId).remove();
+                addMessage("連線錯誤，請稍後再試。", 'ai');
+            }
+        }
+
+        function addMessage(text, sender, isLoading = false) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            const id = 'msg-' + Date.now();
+            div.id = id;
+            div.className = `flex gap-3 ${sender === 'user' ? 'justify-end' : ''}`;
+            
+            const icon = sender === 'ai' 
+                ? `<div class="w-8 h-8 rounded-full bg-sage-200 flex items-center justify-center text-sage-700"><i class="fa-solid fa-robot"></i></div>`
+                : '';
+            
+            const bubbleClass = sender === 'user' 
+                ? 'bg-sage-600 text-white rounded-l-xl rounded-br-xl' 
+                : 'bg-white text-gray-800 rounded-r-xl rounded-bl-xl border border-gray-100';
+
+            div.innerHTML = `
+                ${sender === 'ai' ? icon : ''}
+                <div class="${bubbleClass} p-3 shadow-sm text-sm max-w-[80%]">
+                    ${text} ${isLoading ? '<i class="fa-solid fa-spinner fa-spin ml-1"></i>' : ''}
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return id;
+        }
+
+        // 4. 文案生成功能
+        async function generateMarketingCopy() {
+            const product = document.getElementById('product-select').value;
+            const instruction = document.getElementById('custom-instruction').value;
+            // 抓取被選中的標籤文字，若無則預設"一般"
+            const vibe = document.querySelector('.vibe-tag-active')?.innerText || "一般";
+
+            const btn = document.getElementById('generate-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>生成中...';
+
+            try {
+                // 呼叫您設定的行銷 Webhook
+                const res = await fetch(N8N_MARKETING_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        product: product, 
+                        vibe: vibe, 
+                        instruction: instruction 
+                    })
+                });
+                const data = await res.json();
+                
+                // 更新預覽區
+                document.getElementById('copy-preview').innerText = data.copy;
+                document.getElementById('publish-btns').classList.remove('opacity-50');
+                document.querySelectorAll('.publish-btn').forEach(b => b.disabled = false);
+            } catch (e) {
+                console.error(e);
+                alert("生成失敗，請檢查網路或 n8n 設定");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles mr-2"></i> AI 生成文案';
+            }
+        }
+
+        // 頁面載入時自動抓取資料
+        window.onload = fetchDashboardData;
+    </script>
+</body>
+</html>
