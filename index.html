@@ -28,6 +28,8 @@
         const N8N_DATA_API = "https://chieh1217.app.n8n.cloud/webhook/dashboard-data"; // 例如: https://.../webhook/dashboard-data
         const N8N_CHAT_API = "https://chieh1217.app.n8n.cloud/webhook/web-chat"; // 例如: https://.../webhook/web-chat
         const N8N_MARKETING_API = "https://chieh1217.app.n8n.cloud/webhook/generate-marketing";
+        const N8N_PUBLISH_FB_API = "https://chieh1217.app.n8n.cloud/webhook/publish-fb";
+        const N8N_PUBLISH_LINE_API = "https://chieh1217.app.n8n.cloud/webhook/publish-line";
 
         // 控制手機版側邊欄開關
         function toggleSidebar() {
@@ -159,10 +161,14 @@
                     </div>
                 </div>
             </div>
-            <div id="publish-btns" class="mt-6 flex gap-3 w-full max-w-sm opacity-50">
-                <button class="publish-btn flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold disabled:cursor-not-allowed" disabled>FB 發布</button>
-                <button class="publish-btn flex-1 bg-green-500 text-white py-2 rounded-lg font-bold disabled:cursor-not-allowed" disabled>LINE 推播</button>
-            </div>
+                <div id="publish-btns" class="mt-6 flex gap-3 w-full max-w-sm opacity-50">
+                    <button onclick="publishContent('fb')" class="publish-btn flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold disabled:cursor-not-allowed" disabled>
+                        <i class="fa-brands fa-facebook mr-2"></i>FB 發布
+                    </button>
+                    <button onclick="publishContent('line')" class="publish-btn flex-1 bg-green-500 text-white py-2 rounded-lg font-bold disabled:cursor-not-allowed" disabled>
+                        <i class="fa-brands fa-line mr-2"></i>LINE 推播
+                    </button>
+                </div>
         </div>
     </div>
 </div>
@@ -421,6 +427,53 @@
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles mr-2"></i> AI 生成文案';
+            }
+        }
+
+        // [新增] 統一發布函式
+        async function publishContent(platform) {
+            // 1. 抓取預覽區的文案
+            const text = document.getElementById('copy-preview').innerText;
+            if (!text || text.includes("尚未生成文案")) {
+                alert("請先生成文案再發布！");
+                return;
+            }
+
+            const confirmMsg = platform === 'fb' ? "確定要發布到 Facebook 粉絲專頁嗎？" : "確定要推播給老闆 (LINE) 嗎？";
+            if (!confirm(confirmMsg)) return;
+
+            // 2. 決定 API 網址
+            const apiUrl = platform === 'fb' ? N8N_PUBLISH_FB_API : N8N_PUBLISH_LINE_API;
+            
+            // 3. UI 鎖定
+            const btn = event.currentTarget; // 獲取點擊的按鈕
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i>發送中...`;
+
+            try {
+                // 4. 發送 POST 請求給 n8n
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text }) // 將文案包在 text 欄位傳送
+                });
+
+                const result = await res.json();
+                
+                if (result.success) {
+                    alert(`✅ ${platform === 'fb' ? 'Facebook' : 'LINE'} 發布成功！`);
+                } else {
+                    alert("❌ 發布失敗，請檢查 n8n 設定。");
+                }
+
+            } catch (e) {
+                console.error(e);
+                alert("連線錯誤，請確認 n8n 工作流已開啟 (Active)。");
+            } finally {
+                // 5. 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             }
         }
 
