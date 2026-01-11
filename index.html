@@ -108,7 +108,9 @@
                 <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
                     <div class="p-6 border-b border-gray-100 flex justify-between items-center">
                         <h3 class="font-bold text-lg">即時庫存清單</h3>
-                        <button onclick="fetchDashboardData()" class="text-fresh-orange font-bold text-sm hover:underline"><i class="fa-solid fa-rotate mr-1"></i>刷新數據</button>
+                        <button id="refresh-btn" onclick="fetchDashboardData()" class="text-fresh-orange font-bold text-sm hover:underline">
+                            <i class="fa-solid fa-rotate mr-1"></i>刷新數據
+                        </button>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left">
@@ -177,19 +179,23 @@
     </main>
 
     <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
-            <div id="chat-window" class="hidden w-[calc(100vw-2rem)] md:w-96 h-[70vh] md:h-[500px] ...">            <div class="bg-sage-800 text-white p-4 flex justify-between items-center">
+        <div id="chat-window" class="hidden flex flex-col w-[calc(100vw-2rem)] md:w-96 h-[70vh] md:h-[500px] bg-white rounded-2xl shadow-2xl overflow-hidden mb-4">
+            
+            <div class="bg-sage-800 text-white p-4 flex justify-between items-center flex-shrink-0">
                 <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div><span class="font-bold">AI 智囊團</span></div>
                 <button onclick="toggleChat()" class="text-gray-300 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
             </div>
+
             <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50" id="chat-messages">
                 <div class="flex gap-3">
-                    <div class="w-8 h-8 rounded-full bg-sage-200 flex items-center justify-center text-sage-700"><i class="fa-solid fa-robot"></i></div>
+                    <div class="w-8 h-8 rounded-full bg-sage-200 flex items-center justify-center text-sage-700 flex-shrink-0"><i class="fa-solid fa-robot"></i></div>
                     <div class="bg-white p-3 rounded-r-xl rounded-bl-xl shadow-sm text-sm text-gray-800 max-w-[80%] border border-gray-100">
                         老闆好！我是您的 AI 顧問。今天想查庫存還是需要行銷建議呢？
                     </div>
                 </div>
             </div>
-            <div class="p-3 bg-white border-t border-gray-100">
+
+            <div class="p-3 bg-white border-t border-gray-100 flex-shrink-0">
                 <form onsubmit="sendChat(event)" class="flex gap-2">
                     <input type="text" id="chat-input" placeholder="輸入問題..." class="flex-1 bg-gray-100 border-0 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-sage-500 outline-none">
                     <button type="submit" class="w-10 h-10 rounded-full bg-sage-800 text-white hover:bg-fresh-orange transition flex items-center justify-center">
@@ -197,8 +203,8 @@
                     </button>
                 </form>
             </div>
-        </div>
-        <button onclick="toggleChat()" class="w-16 h-16 bg-fresh-orange text-white rounded-full shadow-lg hover:bg-orange-600 transition flex items-center justify-center text-2xl animate-bounce">
+        </div>        
+<button onclick="toggleChat()" class="w-16 h-16 bg-fresh-orange text-white rounded-full shadow-lg hover:bg-orange-600 transition flex items-center justify-center text-2xl animate-bounce">
             <i class="fa-solid fa-comment-dots"></i>
         </button>
     </div>
@@ -247,19 +253,23 @@
         }
 
         // 2. 獲取儀表板資料 (修正版)
-// 2. 獲取儀表板資料 (修正版：先顯示測試選項，再讀取 API)
+        // 2. 獲取儀表板資料 (修正版：先顯示測試選項，再讀取 API)
         async function fetchDashboardData() {
-            // 先抓取選單元素
+            // 1. 取得按鈕與下拉選單元素
+            const refreshBtn = document.getElementById('refresh-btn');
             const productSelect = document.getElementById('product-select');
-         
             
-            // 【關鍵修正】在呼叫 API 之前，先填入測試選項，這樣網頁一開就有東西選
+            // 2. 設定按鈕為「讀取中」狀態 (UX 優化)
+            // 儲存原始按鈕文字，以便稍後恢復
+            const originalBtnContent = '<i class="fa-solid fa-rotate mr-1"></i>刷新數據';
+            
+            if (refreshBtn) {
+                refreshBtn.disabled = true; // 鎖定按鈕避免重複點擊
+                refreshBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>更新中...';
+                refreshBtn.classList.add('opacity-50', 'cursor-not-allowed'); // 視覺上變淡
+            }
 
-            /*
-                    <option value="測試用愛文芒果">【測試】愛文芒果</option>
-                    <option value="測試用高山高麗菜">【測試】高山高麗菜</option>
-
-            */
+            // 初始化下拉選單 (保留原本邏輯)
             if (productSelect) {
                 productSelect.innerHTML = `
                     <option value="auto">自動推薦 (依天氣/庫存)</option>
@@ -268,15 +278,22 @@
 
             if(N8N_DATA_API.includes("YOUR_N8N")) {
                 console.warn("請設定 N8N Webhook 網址");
+                restoreButton(); // 恢復按鈕
                 return;
             }
 
             try {
+                // 3. 【關鍵修改】加上時間戳記 (?t=...) 強制瀏覽器發送新請求，不讀快取
+                const timestamp = new Date().getTime(); 
+                const freshUrl = `${N8N_DATA_API}?t=${timestamp}`;
+
+                console.log("正在重新抓取資料:", freshUrl); // 除錯用
+
                 // 開始向 n8n 請求資料
-                const res = await fetch(N8N_DATA_API);
+                const res = await fetch(freshUrl);
                 const data = await res.json();
 
-                // 如果成功抓到真實庫存，則把真實資料加在測試選項後面
+                // --- 更新下拉選單 ---
                 if (productSelect && data.inventory && Array.isArray(data.inventory)) {
                     data.inventory.forEach(item => {
                         const opt = document.createElement('option');
@@ -285,29 +302,38 @@
                         productSelect.appendChild(opt);
                     });
                 }
-               
+                
                 // --- 更新天氣 ---
-                document.getElementById('weather-widget').innerHTML = `
-                    <i class="fa-solid fa-cloud-sun text-fresh-orange mr-2"></i>
-                    <span class="font-bold text-sage-800 mr-2">台北 ${Math.round(data.temp)}°C</span>
-                    <span class="text-xs text-gray-500 border-l pl-2 border-gray-300">${data.weather}</span>
-                `;
+                const weatherWidget = document.getElementById('weather-widget');
+                if(weatherWidget) {
+                    weatherWidget.innerHTML = `
+                        <i class="fa-solid fa-cloud-sun text-fresh-orange mr-2"></i>
+                        <span class="font-bold text-sage-800 mr-2">台北 ${Math.round(data.temp)}°C</span>
+                        <span class="text-xs text-gray-500 border-l pl-2 border-gray-300">${data.weather}</span>
+                    `;
+                }
 
                 // --- 更新庫存表格 ---
                 const tbody = document.getElementById('inventory-table-body');
-                if (tbody) tbody.innerHTML = '';
                 const alertList = document.getElementById('alert-list');
+                
+                // 先清空舊資料
+                if (tbody) tbody.innerHTML = '';
                 if (alertList) alertList.innerHTML = '';
 
                 let urgentCount = 0;
 
+                // --- 更新庫存表格 (在 fetchDashboardData 函式內) ---
                 if (data.inventory && Array.isArray(data.inventory)) {
                     data.inventory.forEach(item => {
                         const tr = document.createElement('tr');
-                        tr.className = "hover:bg-gray-50";
+                        tr.className = "hover:bg-gray-50 transition-colors";
+                        
+                        // 1. 設定標籤顏色
                         let badgeClass = "bg-green-100 text-green-700";
                         if(item.status === '急售') badgeClass = "bg-red-100 text-red-700";
-                        if(item.status === '即期') badgeClass = "bg-yellow-100 text-yellow-700";
+                        else if(item.status === '即期') badgeClass = "bg-yellow-100 text-yellow-700";
+                        else if(item.status === '需報廢') badgeClass = "bg-gray-800 text-white"; // 新增報廢樣式
 
                         tr.innerHTML = `
                             <td class="p-4 font-bold text-gray-800">${item.name}</td>
@@ -317,27 +343,61 @@
                         `;
                         if (tbody) tbody.appendChild(tr);
 
-                        if(item.status === '急售' || item.status === '即期') {
+                        // 2. 設定警報清單 (加入需報廢的判斷)
+                        if(item.status === '急售' || item.status === '即期' || item.status === '需報廢') {
                             urgentCount++;
                             const li = document.createElement('li');
-                            li.className = `flex justify-between items-center p-3 ${item.status === '急售' ? 'bg-red-50' : 'bg-yellow-50'} rounded-lg`;
+                            
+                            // 根據狀態決定警報條的顏色
+                            let alertBg = "bg-yellow-50 border-yellow-100";
+                            let alertText = "text-yellow-600";
+                            
+                            if (item.status === '急售') {
+                                alertBg = "bg-red-50 border-red-100";
+                                alertText = "text-red-500";
+                            } else if (item.status === '需報廢') {
+                                alertBg = "bg-gray-200 border-gray-300"; // 報廢用灰色
+                                alertText = "text-gray-700 font-bold";
+                            }
+
+                            li.className = `flex justify-between items-center p-3 ${alertBg} rounded-lg border`;
                             li.innerHTML = `
-                                <div><span class="font-bold text-gray-700">${item.name}</span><div class="text-xs ${item.status === '急售' ? 'text-red-500' : 'text-yellow-600'}">剩餘 ${item.days_left} 天</div></div>
+                                <div>
+                                    <span class="font-bold text-gray-700">${item.name}</span>
+                                    <div class="text-xs ${alertText}">
+                                        ${item.status} (剩餘 ${item.days_left} 天)
+                                    </div>
+                                </div>
                                 <span class="font-mono font-bold text-xl text-gray-800">${item.stock}</span>
                             `;
                             if (alertList) alertList.appendChild(li);
                         }
                     });
-                }
-
-                if(urgentCount === 0 && alertList) alertList.innerHTML = '<li class="text-green-600 text-sm p-2">目前無急售商品，庫存健康！</li>';
+                }   
+                             
+                // 更新 AI 洞察文字
                 const aiInsight = document.getElementById('ai-insight-text');
-                if (aiInsight) aiInsight.innerText = `目前有 ${urgentCount} 項商品需要注意效期。今日天氣 ${data.weather}，建議檢查上方急售清單進行促銷。`;
+                if (aiInsight) {
+                    aiInsight.innerHTML = `已於 ${new Date().toLocaleTimeString()} 更新數據。<br>目前有 <strong>${urgentCount}</strong> 項商品需要注意效期。今日天氣 ${data.weather}。`;
+                }
 
             } catch (error) {
                 console.error("Fetch Data Error:", error);
                 const aiInsight = document.getElementById('ai-insight-text');
-                if (aiInsight) aiInsight.innerText = "無法連線至系統，請確認 n8n 是否啟動。目前僅能使用測試選單。";
+                if (aiInsight) aiInsight.innerText = "無法連線至系統，請確認 n8n 是否啟動。";
+                alert("數據更新失敗，請檢查網路連線。");
+            } finally {
+                // 4. 無論成功或失敗，最後都要恢復按鈕狀態
+                restoreButton();
+            }
+
+            // 輔助函式：恢復按鈕狀態
+            function restoreButton() {
+                if (refreshBtn) {
+                    refreshBtn.disabled = false;
+                    refreshBtn.innerHTML = originalBtnContent;
+                    refreshBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
             }
         }
         // 3. AI 對話功能
@@ -379,7 +439,7 @@
                 : '';
             
             const bubbleClass = sender === 'user' 
-                ? 'bg-sage-600 text-white rounded-l-xl rounded-br-xl' 
+                ? 'bg-sage-500 text-white rounded-l-xl rounded-br-xl' 
                 : 'bg-white text-gray-800 rounded-r-xl rounded-bl-xl border border-gray-100';
 
             div.innerHTML = `
